@@ -14,7 +14,7 @@ char * file
 	unsigned long *dw,langs,foo;
 	unsigned int size;
 	void *chunk, *base;
-	char temp[256], temp2[16];
+	char temp[128], temp2[16], *temp3;
 	HV *h, *r, *l, *th;
 	SV *ts;
 
@@ -30,8 +30,8 @@ char * file
 	if ( ! size ) XSRETURN_UNDEF;
 	chunk = malloc ( size );
 	if ( ! chunk ) XSRETURN_UNDEF;
-	if ( ! GetFileVersionInfo ( file, foo, size, chunk ) ) XSRETURN_UNDEF;
-	if ( ! VerQueryValue ( chunk, "\\", &base, &size ) ) XSRETURN_UNDEF;
+	if ( ! GetFileVersionInfo ( file, foo, size, chunk ) ) { free ( chunk ); XSRETURN_UNDEF; }
+	if ( ! VerQueryValue ( chunk, "\\", &base, &size ) ) { free ( chunk ); XSRETURN_UNDEF; }
 	dw = (unsigned long *)base;
 
 	/* File Version */
@@ -51,15 +51,20 @@ char * file
 	if ( ! hv_store ( r, "ProductVersion", 14, ts, 0 ) ) SvREFCNT_dec ( ts );
 
 	/* Flags */
-	foo = dw[6] & dw[7];
 	th = newHV();
 	/* Brace thyselves */
-	if ( ( foo & VS_FF_DEBUG ) && ( !hv_store(th, "Debug", 5, ts = newSVuv(1), 0) ) ) SvREFCNT_dec (ts);
-	if ( ( foo & VS_FF_PRERELEASE ) && ( !hv_store(th, "Prerelease", 10, ts = newSVuv(1), 0) ) ) SvREFCNT_dec(ts);
-	if ( ( foo & VS_FF_PATCHED ) && ( !hv_store(th, "Patched", 7, ts = newSVuv(1), 0) ) ) SvREFCNT_dec(ts);
-	if ( ( foo & VS_FF_PRIVATEBUILD ) && ( !hv_store(th, "PrivateBuild", 12, ts = newSVuv(1), 0) ) ) SvREFCNT_dec(ts);
-	if ( ( foo & VS_FF_INFOINFERRED ) && ( !hv_store(th, "InfoInferred", 12, ts = newSVuv(1), 0) ) ) SvREFCNT_dec(ts);
-	if ( ( foo & VS_FF_SPECIALBUILD ) && ( !hv_store(th, "SpecialBuild", 12, ts = newSVuv(1), 0) ) ) SvREFCNT_dec(ts);
+	if ( ( dw[6] & VS_FF_DEBUG ) &&
+		( !hv_store(th, "Debug", 5, ts = newSVuv( dw[7] & VS_FF_DEBUG ), 0) ) ) SvREFCNT_dec (ts);
+	if ( ( dw[6] & VS_FF_PRERELEASE ) &&
+		( !hv_store(th, "Prerelease", 10, ts = newSVuv( dw[7] & VS_FF_PRERELEASE ), 0) ) ) SvREFCNT_dec(ts);
+	if ( ( dw[6] & VS_FF_PATCHED ) &&
+		( !hv_store(th, "Patched", 7, ts = newSVuv( dw[7] & VS_FF_PATCHED ), 0) ) ) SvREFCNT_dec(ts);
+	if ( ( dw[6] & VS_FF_PRIVATEBUILD ) &&
+		( !hv_store(th, "PrivateBuild", 12, ts = newSVuv( dw[7] & VS_FF_PRIVATEBUILD ), 0) ) ) SvREFCNT_dec(ts);
+	if ( ( dw[6] & VS_FF_INFOINFERRED ) &&
+		( !hv_store(th, "InfoInferred", 12, ts = newSVuv( dw[7] & VS_FF_INFOINFERRED ), 0) ) ) SvREFCNT_dec(ts);
+	if ( ( dw[6] & VS_FF_SPECIALBUILD ) &&
+		( !hv_store(th, "SpecialBuild", 12, ts = newSVuv( dw[7] & VS_FF_SPECIALBUILD ), 0) ) ) SvREFCNT_dec(ts);
 	ts = newRV_noinc ( (SV *) th );
 	if ( ! hv_store ( h, "Flags", 5, ts, 0 ) ) SvREFCNT_dec ( ts );
 	sprintf ( temp, "%08X", dw[6] );
@@ -146,9 +151,12 @@ char * file
 	if ( ! hv_store ( r, "Date", 4, ts, 0 ) ) SvREFCNT_dec ( ts );
 
 	/* Variable Part */
-	if ( ! VerQueryValue ( chunk, "\\VarFileInfo\\Translation", &base, &size ) ) XSRETURN_UNDEF; /* XXX */
-	dw = (unsigned long *)base;
-	langs = size / sizeof ( DWORD );
+	if ( VerQueryValue ( chunk, "\\VarFileInfo\\Translation", &base, &size ) ) {
+		dw = (unsigned long *)base;
+		langs = size / sizeof ( DWORD );
+	} else {
+		langs = 0;
+	}
 
 	if ( langs ) {
 		l = newHV();
@@ -160,79 +168,91 @@ char * file
 		th = newHV();
 
 		sprintf ( temp, "\\StringFileInfo\\%04x%04x\\Comments", dw[foo] & 0xffff, dw[foo] >> 16 );
-		if ( VerQueryValue ( chunk, temp, &base, &size ) && size ) {
-			sprintf ( temp, "%.*s", size, base );
-			ts = newSVpv ( temp, 0 );
+		if ( VerQueryValue ( chunk, temp, &base, &size ) && size && ( temp3 = malloc ( size + 1 ) ) ) {
+			sprintf ( temp3, "%.*s", size, base );
+			ts = newSVpv ( temp3, 0 );
+			free ( temp3 );
 			if ( ! hv_store ( th, "Comments", 8, ts, 0 ) ) SvREFCNT_dec ( ts );
 		}
 		sprintf ( temp, "\\StringFileInfo\\%04x%04x\\CompanyName", dw[foo] & 0xffff, dw[foo] >> 16 );
-		if ( VerQueryValue ( chunk, temp, &base, &size ) && size ) {
-			sprintf ( temp, "%.*s", size, base );
-			ts = newSVpv ( temp, 0 );
+		if ( VerQueryValue ( chunk, temp, &base, &size ) && size && ( temp3 = malloc ( size + 1 ) ) ) {
+			sprintf ( temp3, "%.*s", size, base );
+			ts = newSVpv ( temp3, 0 );
+			free ( temp3 );
 			if ( ! hv_store ( th, "CompanyName", 11, ts, 0 ) ) SvREFCNT_dec ( ts );
 		}
 		sprintf ( temp, "\\StringFileInfo\\%04x%04x\\FileDescription", dw[foo] & 0xffff, dw[foo] >> 16 );
-		if ( VerQueryValue ( chunk, temp, &base, &size ) && size ) {
-			sprintf ( temp, "%.*s", size, base );
-			ts = newSVpv ( temp, 0 );
+		if ( VerQueryValue ( chunk, temp, &base, &size ) && size && ( temp3 = malloc ( size + 1 ) ) ) {
+			sprintf ( temp3, "%.*s", size, base );
+			ts = newSVpv ( temp3, 0 );
+			free ( temp3 );
 			if ( ! hv_store ( th, "FileDescription", 15, ts, 0 ) ) SvREFCNT_dec ( ts );
 		}
 		sprintf ( temp, "\\StringFileInfo\\%04x%04x\\FileVersion", dw[foo] & 0xffff, dw[foo] >> 16 );
-		if ( VerQueryValue ( chunk, temp, &base, &size ) && size ) {
-			sprintf ( temp, "%.*s", size, base );
-			ts = newSVpv ( temp, 0 );
+		if ( VerQueryValue ( chunk, temp, &base, &size ) && size && ( temp3 = malloc ( size + 1 ) ) ) {
+			sprintf ( temp3, "%.*s", size, base );
+			ts = newSVpv ( temp3, 0 );
+			free ( temp3 );
 			if ( ! hv_store ( th, "FileVersion", 11, ts, 0 ) ) SvREFCNT_dec ( ts );
 		}
 		sprintf ( temp, "\\StringFileInfo\\%04x%04x\\InternalName", dw[foo] & 0xffff, dw[foo] >> 16 );
-		if ( VerQueryValue ( chunk, temp, &base, &size ) && size ) {
-			sprintf ( temp, "%.*s", size, base );
-			ts = newSVpv ( temp, 0 );
+		if ( VerQueryValue ( chunk, temp, &base, &size ) && size && ( temp3 = malloc ( size + 1 ) ) ) {
+			sprintf ( temp3, "%.*s", size, base );
+			ts = newSVpv ( temp3, 0 );
+			free ( temp3 );
 			if ( ! hv_store ( th, "InternalName", 12, ts, 0 ) ) SvREFCNT_dec ( ts );
 		}
 		sprintf ( temp, "\\StringFileInfo\\%04x%04x\\LegalCopyright", dw[foo] & 0xffff, dw[foo] >> 16 );
-		if ( VerQueryValue ( chunk, temp, &base, &size ) && size ) {
-			sprintf ( temp, "%.*s", size, base );
-			ts = newSVpv ( temp, 0 );
-			if ( ! hv_store ( th, "Copyright", 9, ts, 0 ) ) SvREFCNT_dec ( ts );
+		if ( VerQueryValue ( chunk, temp, &base, &size ) && size && ( temp3 = malloc ( size + 1 ) ) ) {
+			sprintf ( temp3, "%.*s", size, base );
+			ts = newSVpv ( temp3, 0 );
+			free ( temp3 );
+			if ( ! hv_store ( th, "LegalCopyright", 14, ts, 0 ) ) SvREFCNT_dec ( ts );
 		}
 		sprintf ( temp, "\\StringFileInfo\\%04x%04x\\LegalTrademarks", dw[foo] & 0xffff, dw[foo] >> 16 );
-		if ( VerQueryValue ( chunk, temp, &base, &size ) && size ) {
-			sprintf ( temp, "%.*s", size, base );
-			ts = newSVpv ( temp, 0 );
-			if ( ! hv_store ( th, "Trademarks", 10, ts, 0 ) ) SvREFCNT_dec ( ts );
+		if ( VerQueryValue ( chunk, temp, &base, &size ) && size && ( temp3 = malloc ( size + 1 ) ) ) {
+			sprintf ( temp3, "%.*s", size, base );
+			ts = newSVpv ( temp3, 0 );
+			free ( temp3 );
+			if ( ! hv_store ( th, "LegalTrademarks", 15, ts, 0 ) ) SvREFCNT_dec ( ts );
 		}
 		sprintf ( temp, "\\StringFileInfo\\%04x%04x\\OriginalFilename", dw[foo] & 0xffff, dw[foo] >> 16 );
-		if ( VerQueryValue ( chunk, temp, &base, &size ) && size ) {
-			sprintf ( temp, "%.*s", size, base );
-			ts = newSVpv ( temp, 0 );
+		if ( VerQueryValue ( chunk, temp, &base, &size ) && size && ( temp3 = malloc ( size + 1 ) ) ) {
+			sprintf ( temp3, "%.*s", size, base );
+			ts = newSVpv ( temp3, 0 );
+			free ( temp3 );
 			if ( ! hv_store ( th, "OriginalFilename", 16, ts, 0 ) ) SvREFCNT_dec ( ts );
 		}
 		sprintf ( temp, "\\StringFileInfo\\%04x%04x\\ProductName", dw[foo] & 0xffff, dw[foo] >> 16 );
-		if ( VerQueryValue ( chunk, temp, &base, &size ) && size ) {
-			sprintf ( temp, "%.*s", size, base );
-			ts = newSVpv ( temp, 0 );
+		if ( VerQueryValue ( chunk, temp, &base, &size ) && size && ( temp3 = malloc ( size + 1 ) ) ) {
+			sprintf ( temp3, "%.*s", size, base );
+			ts = newSVpv ( temp3, 0 );
+			free ( temp3 );
 			if ( ! hv_store ( th, "ProductName", 11, ts, 0 ) ) SvREFCNT_dec ( ts );
 		}
 		sprintf ( temp, "\\StringFileInfo\\%04x%04x\\ProductVersion", dw[foo] & 0xffff, dw[foo] >> 16 );
-		if ( VerQueryValue ( chunk, temp, &base, &size ) && size ) {
-			sprintf ( temp, "%.*s", size, base );
-			ts = newSVpv ( temp, 0 );
+		if ( VerQueryValue ( chunk, temp, &base, &size ) && size && ( temp3 = malloc ( size + 1 ) ) ) {
+			sprintf ( temp3, "%.*s", size, base );
+			ts = newSVpv ( temp3, 0 );
+			free ( temp3 );
 			if ( ! hv_store ( th, "ProductVersion", 14, ts, 0 ) ) SvREFCNT_dec ( ts );
 		}
 		sprintf ( temp, "\\StringFileInfo\\%04x%04x\\PrivateBuild", dw[foo] & 0xffff, dw[foo] >> 16 );
-		if ( VerQueryValue ( chunk, temp, &base, &size ) && size ) {
-			sprintf ( temp, "%.*s", size, base );
-			ts = newSVpv ( temp, 0 );
+		if ( VerQueryValue ( chunk, temp, &base, &size ) && size && ( temp3 = malloc ( size + 1 ) ) ) {
+			sprintf ( temp3, "%.*s", size, base );
+			ts = newSVpv ( temp3, 0 );
+			free ( temp3 );
 			if ( ! hv_store ( th, "PrivateBuild", 12, ts, 0 ) ) SvREFCNT_dec ( ts );
 		}
 		sprintf ( temp, "\\StringFileInfo\\%04x%04x\\SpecialBuild", dw[foo] & 0xffff, dw[foo] >> 16 );
-		if ( VerQueryValue ( chunk, temp, &base, &size ) && size ) {
-			sprintf ( temp, "%.*s", size, base );
-			ts = newSVpv ( temp, 0 );
+		if ( VerQueryValue ( chunk, temp, &base, &size ) && size && ( temp3 = malloc ( size + 1 ) ) ) {
+			sprintf ( temp3, "%.*s", size, base );
+			ts = newSVpv ( temp3, 0 );
+			free ( temp3 );
 			if ( ! hv_store ( th, "SpecialBuild", 12, ts, 0 ) ) SvREFCNT_dec ( ts );
 		}
 
-		VerLanguageName ( dw[foo], temp, 255 );
+		VerLanguageName ( dw[foo], temp, 127 );
 		ts = newRV_noinc ( (SV *) th );
 		if ( ! hv_store ( l, temp, strlen ( temp ), ts, 0 ) ) SvREFCNT_dec ( ts );		
 	}

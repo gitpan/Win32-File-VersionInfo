@@ -11,7 +11,7 @@ our @ISA = qw(Exporter);
 our @EXPORT = qw( GetFileVersionInfo );
 our @EXPORT_OK = qw(  );
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 XSLoader::load('Win32::File::VersionInfo', $VERSION);
 
 1;
@@ -64,9 +64,9 @@ Contains a 4-part dot-separated version string (i.e. 4.0.4331.6).
 
 =item Flags
 
-A hash with an element set to true for each flag that is set. Flags that
-are not set have no corresponding element (and so should evaluate to false).
-Possible flags are:
+A hash with an element set to 1 if the flag is set to true or 0 if the flag
+set to false. Flags that are unset have no corresponding element (and so 
+should evaluate to false). Possible flags are:
 
 =over
 
