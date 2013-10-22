@@ -11,7 +11,7 @@ our @ISA = qw(Exporter);
 our @EXPORT = qw( GetFileVersionInfo );
 our @EXPORT_OK = qw(  );
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 XSLoader::load('Win32::File::VersionInfo', $VERSION);
 
 1;
@@ -28,7 +28,7 @@ Win32::File::VersionInfo - Read program version information on Win32
   my $foo = GetFileVersionInfo ( "C:\\path\\to\\file.dll" );
   if ( $foo ) {
 	print $foo->{FileVersion}, "\n";
-	my $lang = ( keys %{$foo->{Lang}} )[0] );
+	my $lang = ( ( keys %{$foo->{Lang}} )[0] );
 	if ( $lang ) {
 		print $foo->{Lang}{$lang}{CompanyName}, "\n";
 	}

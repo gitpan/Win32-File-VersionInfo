@@ -1,7 +1,12 @@
 Revision history for Perl extension Win32::File::VersionInfo.
 
+0.05  Tue Oct 22 17:43:00 2013
+	- Documentation fix (should have done this as part of 0.04...)
+	  https://rt.cpan.org/Public/Bug/Display.html?id=27098
+
 0.04  Tue Oct 22 16:36:00 2013
 	- fixed bug 21867 where module does not compile under Cygwin.
+	  https://rt.cpan.org/Public/Bug/Display.html?id=21867
 
 0.03  Sat May 1 03:30:00 2004
 	- fixed buffer overflow bug in the handling of the
