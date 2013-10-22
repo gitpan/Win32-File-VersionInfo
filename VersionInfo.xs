@@ -1,6 +1,7 @@
 #include "EXTERN.h"
 #include "perl.h"
 #include "XSUB.h"
+#include <windows.h>
 #include <winver.h>
 
 MODULE = Win32::File::VersionInfo PACKAGE = Win32::File::VersionInfo

@@ -1,5 +1,8 @@
 Revision history for Perl extension Win32::File::VersionInfo.
 
+0.04  Tue Oct 22 16:36:00 2013
+	- fixed bug 21867 where module does not compile under Cygwin.
+
 0.03  Sat May 1 03:30:00 2004
 	- fixed buffer overflow bug in the handling of the
 		language-dependant variable part
